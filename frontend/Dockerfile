@@ -22,7 +22,10 @@ RUN apk add --no-cache openssl
 
 # The image turns templates/*.template into conf.d/* at start, filling in ${BACKEND_URL}.
 COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
-COPY --chmod=755 nginx/40-basic-auth.sh /docker-entrypoint.d/40-basic-auth.sh
+# Plain COPY + RUN: Azure's image builder (az acr build) doesn't support COPY --chmod.
+# sed strips Windows line endings, which would stop the script from running in Linux.
+COPY nginx/40-basic-auth.sh /docker-entrypoint.d/40-basic-auth.sh
+RUN sed -i 's/\r$//' /docker-entrypoint.d/40-basic-auth.sh && chmod 755 /docker-entrypoint.d/40-basic-auth.sh
 COPY --from=build /app/dist /usr/share/nginx/html
 
 ENV BACKEND_URL=http://backend:8080

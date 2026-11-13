@@ -5,7 +5,7 @@
 .DESCRIPTION
   In one resource group (default rg-agent-lab) it creates:
     - Azure Container Registry           the Docker images (built in Azure: no local Docker needed)
-    - Azure Database for PostgreSQL      Flexible Server, Burstable B1ms, database agent_lab_db
+    - Azure Database for PostgreSQL      Flexible Server, Burstable (-PgSku, default B1ms), database agent_lab_db
     - Storage account + Blob container   "agentdata" with your data/raw (and data/gold, if present)
     - Container Apps environment         + log workspace
     - Container App ca-<prefix>-api      FastAPI backend: internal only, managed identity
@@ -31,9 +31,14 @@ param(
     [string]$Location = "",            # empty: the resource group's location
     [string]$FoundryResource = "",     # empty: the AIServices resource found in the resource group
     [string]$GitHubRepo = "",          # "owner/repo"; empty = skip the GitHub OIDC step
-    [string]$SiteUser = "lab"
+    [string]$SiteUser = "lab",
+    [string]$PgSku = "Standard_B1ms",  # Burstable size; see what a region offers with: az postgres flexible-server list-skus -l <region>
+    [string]$PgLocation = ""           # empty: same as -Location. PostgreSQL can live in another region if needed
 )
 
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    throw "Run this script in PowerShell 7: install it with 'winget install Microsoft.PowerShell', open a new terminal, type 'pwsh', then run the script again. (Windows PowerShell 5.1 ignores failed az commands.)"
+}
 $ErrorActionPreference = "Stop"
 $PSNativeCommandUseErrorActionPreference = $true
 $root = Resolve-Path (Join-Path $PSScriptRoot "..\..")
@@ -41,20 +46,19 @@ Set-Location $root
 
 function Step($text) { Write-Host "`n==> $text" -ForegroundColor Cyan }
 function Exists([scriptblock]$probe) {
+    # "Not found" is an expected answer here, not an error: don't let it stop the script.
+    $ErrorActionPreference = "Continue"
     $PSNativeCommandUseErrorActionPreference = $false
     & $probe 2>$null | Out-Null
-    $ok = ($LASTEXITCODE -eq 0)
-    $PSNativeCommandUseErrorActionPreference = $true
-    return $ok
+    return ($LASTEXITCODE -eq 0)
 }
 function Retry([scriptblock]$action, [string]$what, [int]$tries = 10) {
     # New role assignments take a few minutes to apply: try again instead of failing.
+    $ErrorActionPreference = "Continue"
+    $PSNativeCommandUseErrorActionPreference = $false
     for ($i = 1; $i -le $tries; $i++) {
-        $PSNativeCommandUseErrorActionPreference = $false
         & $action
-        $code = $LASTEXITCODE
-        $PSNativeCommandUseErrorActionPreference = $true
-        if ($code -eq 0) { return }
+        if ($LASTEXITCODE -eq 0) { return }
         Write-Host "   $what not ready yet (attempt $i/$tries); waiting 30 s for permissions to apply…"
         Start-Sleep -Seconds 30
     }
@@ -105,10 +109,13 @@ if (-not (Exists { az group show -n $ResourceGroup })) {
     az group create -n $ResourceGroup -l $Location -o none
 }
 if (-not $Location) { $Location = az group show -n $ResourceGroup --query location -o tsv }
+if (-not $PgLocation) { $PgLocation = $Location }
 
 $suffix = $subscription.Substring(0, 6).ToLower()          # same every run, unique enough
 $acr = ("acr$Prefix$suffix" -replace "[^a-z0-9]", "")
 $pg = "pg-$Prefix-$suffix"
+# A database in another region gets its own name: Azure keeps a failed server's name tied to its region.
+if ($PgLocation -ne $Location) { $pg = "$pg-$PgLocation" }
 $storage = ("st$Prefix$suffix" -replace "[^a-z0-9]", "")
 if ($storage.Length -gt 24) { $storage = $storage.Substring(0, 24) }
 $container = "agentdata"
@@ -145,15 +152,20 @@ $acrServer = az acr show -n $acr --query loginServer -o tsv
 $acrPassword = az acr credential show -n $acr --query "passwords[0].value" -o tsv
 
 # --- PostgreSQL --------------------------------------------------------------------------------
-Step "PostgreSQL $pg (5-10 minutes the first time)"
-if (-not (Exists { az postgres flexible-server show -n $pg -g $ResourceGroup })) {
-    az postgres flexible-server create -n $pg -g $ResourceGroup -l $Location `
-        --tier Burstable --sku-name Standard_B1ms --storage-size 32 --version 16 `
+Step "PostgreSQL $pg, $PgSku in $PgLocation (5-10 minutes the first time)"
+# Ask the list (not "show"): a failed create can leave a half-made server that "show" finds for a few minutes.
+$pgFound = az postgres flexible-server list -g $ResourceGroup --query "[?name=='$pg'].name | [0]" -o tsv
+if (-not $pgFound) {
+    az postgres flexible-server create -n $pg -g $ResourceGroup -l $PgLocation `
+        --tier Burstable --sku-name $PgSku --storage-size 32 --version 16 `
         --admin-user $dbUser --admin-password $secrets.postgresPassword `
         --public-access 0.0.0.0 --yes -o none   # 0.0.0.0 = allow Azure services (the Container App)
 }
-if (-not (Exists { az postgres flexible-server db show -s $pg -g $ResourceGroup -d $dbName })) {
-    az postgres flexible-server db create -s $pg -g $ResourceGroup -d $dbName -o none
+$pgState = az postgres flexible-server show -n $pg -g $ResourceGroup --query state -o tsv
+if ($pgState -ne "Ready") { throw "PostgreSQL $pg is '$pgState', not Ready. Delete it (az postgres flexible-server delete -n $pg -g $ResourceGroup --yes) and run the script again." }
+# Newer az versions name the database with --name (older ones used --database-name/-d).
+if (-not (Exists { az postgres flexible-server db show --server-name $pg -g $ResourceGroup --name $dbName })) {
+    az postgres flexible-server db create --server-name $pg -g $ResourceGroup --name $dbName -o none
 }
 $pgHost = az postgres flexible-server show -n $pg -g $ResourceGroup --query fullyQualifiedDomainName -o tsv
 $databaseUrl = "postgresql+asyncpg://${dbUser}:$($secrets.postgresPassword)@${pgHost}:5432/${dbName}?ssl=require"
