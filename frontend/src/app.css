@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+/* Design tokens. Tailwind turns each --color-* into utilities: bg-ink-900, text-signal-600, border-line … */
+@theme {
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+
+  /* Navy "instrument panel" chrome */
+  --color-ink-950: #0d1628;
+  --color-ink-900: #14213d;
+  --color-ink-800: #22314f;
+  --color-ink-700: #34466a;
+  --color-ink-500: #5d6f91;
+  --color-ink-400: #8a9ab8;
+  --color-ink-200: #c9d2e3;
+
+  /* Workspace */
+  --color-paper: #f4f6f9;
+  --color-surface: #ffffff;
+  --color-line: #dde2ea;
+  --color-line-strong: #c4ccd8;
+
+  /* Signal amber: the one accent, used for primary actions and "published" moments */
+  --color-signal-50: #fdf6e3;
+  --color-signal-100: #faeac0;
+  --color-signal-400: #f0b72f;
+  --color-signal-500: #e3a008;
+  --color-signal-600: #b7800a;
+  --color-signal-800: #6e4c06;
+
+  /* States */
+  --color-ok-50: #eaf6ef;
+  --color-ok-600: #2f855a;
+  --color-ok-800: #1f5a3d;
+  --color-bad-50: #fdecec;
+  --color-bad-600: #c53030;
+  --color-bad-800: #8a1f1f;
+}
+
+html {
+  font-feature-settings: "ss01", "cv11";
+  /* Every rem-based size (text-sm, padding, gaps) is 15/16 of Tailwind's default: denser screens. */
+  font-size: 15px;
+}
+
+body {
+  @apply bg-paper text-ink-900 font-sans antialiased;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-signal-500);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* The prompt-assembly reveal: the one orchestrated motion in the app. */
+@keyframes stack-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.stack-in {
+  animation: stack-in 320ms ease-out both;
+}
+
+/* Rendered Markdown (skill instructions preview) */
+.md {
+  @apply text-[14px] leading-relaxed text-ink-800;
+  max-width: 72ch;
+}
+.md h1 {
+  @apply mt-2 mb-3 text-xl font-semibold text-ink-900;
+}
+.md h2 {
+  @apply mt-6 mb-2 text-lg font-semibold text-ink-900;
+}
+.md h3 {
+  @apply mt-5 mb-2 font-semibold text-ink-900;
+}
+.md p {
+  @apply my-3;
+}
+.md ul {
+  @apply my-3 list-disc pl-6;
+}
+.md ol {
+  @apply my-3 list-decimal pl-6;
+}
+.md li {
+  @apply my-1;
+}
+.md code {
+  @apply rounded bg-paper px-1 py-0.5 font-mono text-[13px] text-ink-900;
+}
+.md pre {
+  @apply my-3 overflow-x-auto rounded-md bg-ink-950 p-4 text-[13px] text-ink-200;
+}
+.md pre code {
+  @apply bg-transparent p-0 text-inherit;
+}
+.md table {
+  @apply my-4 w-full border-collapse text-sm;
+}
+.md th,
+.md td {
+  @apply border border-line px-3 py-2 text-left align-top;
+}
+.md th {
+  @apply bg-paper font-semibold;
+}
+.md blockquote {
+  @apply my-3 border-l-4 border-signal-400 pl-4 text-ink-700;
+}

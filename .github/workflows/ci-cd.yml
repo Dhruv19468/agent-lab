@@ -1,0 +1,86 @@
+# Every push and pull request: backend unit tests + frontend type-check and build.
+# Push to main (after both pass): build both images in Azure Container Registry and roll the
+# Container Apps to them. Azure login uses OIDC (deploy/azure/setup.ps1 -GitHubRepo creates it):
+# GitHub stores no Azure password.
+name: ci-cd
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # for the Azure OIDC login
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Install (exactly what uv.lock says, with the dev group)
+        run: uv sync --frozen
+      - name: Unit tests (no database, no Azure)
+        run: uv run pytest -q
+
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+
+  deploy:
+    name: Deploy to Azure
+    needs: [backend, frontend]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.ACR_NAME != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Build images in ACR
+        run: |
+          az acr build -r "${{ vars.ACR_NAME }}" -t "agent-lab-api:${{ github.sha }}" ./backend
+          az acr build -r "${{ vars.ACR_NAME }}" -t "agent-lab-web:${{ github.sha }}" ./frontend
+      - name: Roll out
+        run: |
+          server=$(az acr show -n "${{ vars.ACR_NAME }}" --query loginServer -o tsv)
+          az containerapp update -n "${{ vars.API_APP }}" -g "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --image "$server/agent-lab-api:${{ github.sha }}" -o none
+          az containerapp update -n "${{ vars.WEB_APP }}" -g "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --image "$server/agent-lab-web:${{ github.sha }}" -o none
+      - name: Smoke test
+        run: |
+          fqdn=$(az containerapp show -n "${{ vars.WEB_APP }}" -g "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          for i in 1 2 3 4 5 6; do
+            curl -fsS "https://$fqdn/healthz" && exit 0
+            sleep 15
+          done
+          echo "Frontend did not answer /healthz" && exit 1

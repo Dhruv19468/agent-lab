@@ -1,0 +1,173 @@
+[
+  {
+    "id": "P01_Invoice_Matching",
+    "project": "Supplier Invoice Matching Automation",
+    "split": "train",
+    "brd_format": {
+      "font": "Times New Roman",
+      "heading": "underline",
+      "numbering": "dot",
+      "toc": true,
+      "cover": "meta_lines"
+    },
+    "testplan_format": {
+      "font": "Calibri",
+      "heading": "styles",
+      "numbering": "paren",
+      "toc": false,
+      "cover": "meta_lines"
+    }
+  },
+  {
+    "id": "P02_Quote_Assistant",
+    "project": "Customer Quote Assistant",
+    "split": "train",
+    "brd_format": {
+      "font": "Times New Roman",
+      "heading": "bold",
+      "numbering": "roman",
+      "toc": true,
+      "cover": "title_only"
+    },
+    "testplan_format": {
+      "font": "Verdana",
+      "heading": "bold",
+      "numbering": "paren",
+      "toc": false,
+      "cover": "meta_lines"
+    }
+  },
+  {
+    "id": "P03_Contract_Intelligence",
+    "project": "Contract Intelligence",
+    "split": "train",
+    "brd_format": {
+      "font": "Cambria",
+      "heading": "styles",
+      "numbering": "dot",
+      "toc": false,
+      "cover": "meta_table"
+    },
+    "testplan_format": {
+      "font": "Arial",
+      "heading": "styles",
+      "numbering": "dot",
+      "toc": false,
+      "cover": "meta_lines"
+    }
+  },
+  {
+    "id": "P04_Product_Data_Enrichment",
+    "project": "Product Data Enrichment",
+    "split": "train",
+    "brd_format": {
+      "font": "Arial",
+      "heading": "underline",
+      "numbering": "dot",
+      "toc": true,
+      "cover": "meta_lines"
+    },
+    "testplan_format": {
+      "font": "Times New Roman",
+      "heading": "bold",
+      "numbering": "dot",
+      "toc": false,
+      "cover": "title_only"
+    }
+  },
+  {
+    "id": "P05_Freight_Claims",
+    "project": "Freight Damage Claims Automation",
+    "split": "train",
+    "brd_format": {
+      "font": "Calibri",
+      "heading": "bold",
+      "numbering": "paren",
+      "toc": true,
+      "cover": "meta_lines"
+    },
+    "testplan_format": {
+      "font": "Times New Roman",
+      "heading": "underline",
+      "numbering": "dot",
+      "toc": true,
+      "cover": "title_only"
+    }
+  },
+  {
+    "id": "P06_Rebate_Validation",
+    "project": "Supplier Rebate Claim Validation",
+    "split": "validation",
+    "brd_format": {
+      "font": "Verdana",
+      "heading": "underline",
+      "numbering": "section",
+      "toc": false,
+      "cover": "meta_lines"
+    },
+    "testplan_format": {
+      "font": "Segoe UI",
+      "heading": "styles",
+      "numbering": "section",
+      "toc": false,
+      "cover": "banner"
+    }
+  },
+  {
+    "id": "P07_Email_Order_Entry",
+    "project": "Email Purchase Order Entry Automation",
+    "split": "validation",
+    "brd_format": {
+      "font": "Segoe UI",
+      "heading": "styles",
+      "numbering": "dot",
+      "toc": true,
+      "cover": "meta_lines"
+    },
+    "testplan_format": {
+      "font": "Verdana",
+      "heading": "underline",
+      "numbering": "dot",
+      "toc": true,
+      "cover": "meta_table"
+    }
+  },
+  {
+    "id": "P08_Warranty_Returns",
+    "project": "Warranty Returns (RMA) Assistant",
+    "split": "test",
+    "brd_format": {
+      "font": "Verdana",
+      "heading": "styles",
+      "numbering": "paren",
+      "toc": true,
+      "cover": "title_only"
+    },
+    "testplan_format": {
+      "font": "Arial",
+      "heading": "bold",
+      "numbering": "none",
+      "toc": false,
+      "cover": "title_only"
+    }
+  },
+  {
+    "id": "P09_Vendor_Compliance",
+    "project": "Vendor Onboarding Compliance Screening",
+    "split": "test",
+    "brd_format": {
+      "font": "Times New Roman",
+      "heading": "styles",
+      "numbering": "paren",
+      "toc": false,
+      "cover": "banner"
+    },
+    "testplan_format": {
+      "font": "Cambria",
+      "heading": "bold",
+      "numbering": "none",
+      "toc": false,
+      "cover": "title_only"
+    }
+  }
+]

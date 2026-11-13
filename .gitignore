@@ -1,0 +1,27 @@
+# Secrets: never commit
+.env
+.env.*
+!.env.example
+deploy/azure/secrets.local.json
+
+# Python / uv
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+
+# What agents and the scorer write at runtime
+data/agent-output/*
+!data/agent-output/.gitkeep
+data/_cache/
+
+# Experiment outputs (commit a summary.md by hand if you want to keep one)
+backend/experiments/
+
+*.log
+.DS_Store
