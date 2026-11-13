@@ -17,7 +17,7 @@
 
   The backend's managed identity gets:
     - "Storage Blob Data Contributor" on the storage account  (read the dataset, save outputs)
-    - "Azure AI Developer" on the Foundry resource            (publish/delete agents, list models)
+    - "Azure AI User" on the Foundry resource                 (publish/delete agents, list models)
   No storage key is used anywhere.
 
 .EXAMPLE
@@ -299,9 +299,16 @@ Exists { az role assignment create --assignee-object-id $principal --assignee-pr
     --role "Storage Blob Data Contributor" --scope $storageId -o none } | Out-Null
 Write-Host "Storage Blob Data Contributor on $storage"
 if ($foundryId) {
-    Exists { az role assignment create --assignee-object-id $principal --assignee-principal-type ServicePrincipal `
-        --role "Azure AI Developer" --scope $foundryId -o none } | Out-Null
-    Write-Host "Azure AI Developer on $FoundryResource"
+    # Writing agents needs the data action .../AIServices/agents/write. "Azure AI Developer" doesn't
+    # include it; "Azure AI User" does, and "Cognitive Services User" (all data actions) is the fallback
+    # for directories where the newer role isn't available yet.
+    $foundryRole = ""
+    foreach ($role in "Azure AI User", "53ca6127-db72-4b80-b1b0-d745d6d5456d", "Cognitive Services User") {
+        if (Exists { az role assignment create --assignee-object-id $principal --assignee-principal-type ServicePrincipal `
+                --role $role --scope $foundryId -o none }) { $foundryRole = $role; break }
+    }
+    if (-not $foundryRole) { throw "Couldn't give the backend a Foundry role on $FoundryResource." }
+    Write-Host "Foundry role '$foundryRole' on $FoundryResource (publish/delete agents, list models)"
 }
 Write-Host "Roles take a few minutes to apply; the backend picks them up on its next request."
 
@@ -324,13 +331,31 @@ if ($GitHubRepo) {
     $appId = az ad app list --display-name $appName --query "[0].appId" -o tsv
     if (-not $appId) { $appId = az ad app create --display-name $appName --query appId -o tsv }
     if (-not (Exists { az ad sp show --id $appId })) { az ad sp create --id $appId -o none }
+    # GitHub sends the subject in one of two forms: "repo:owner/repo:..." (classic) or, for newer
+    # repositories, with numeric IDs: "repo:owner@<ownerId>/repo@<repoId>:...". Trust both.
+    $subjects = @{ "main-branch" = "repo:${GitHubRepo}:ref:refs/heads/main" }
+    $ids = $null
+    if (Get-Command gh -ErrorAction SilentlyContinue) {
+        $ids = gh api "repos/$GitHubRepo" --jq '"\(.owner.id) \(.id)"' 2>$null
+    }
+    if ($ids) {
+        $ownerId, $repoId = $ids.Trim().Split(" ")
+        $owner, $repoName = $GitHubRepo.Split("/")
+        $subjects["main-branch-ids"] = "repo:$owner@$ownerId/$repoName@${repoId}:ref:refs/heads/main"
+    } else {
+        Write-Host "gh not available: if the deploy login fails with AADSTS700213, add a federated credential with the subject that error shows."
+    }
     $credentialFile = Join-Path ([IO.Path]::GetTempPath()) "gh-credential.json"
-    @{ name = "main-branch"; issuer = "https://token.actions.githubusercontent.com"
-       subject = "repo:${GitHubRepo}:ref:refs/heads/main"; audiences = @("api://AzureADTokenExchange") } |
-        ConvertTo-Json | Set-Content $credentialFile
-    $existing = az ad app federated-credential list --id $appId --query "[?name=='main-branch'] | length(@)" -o tsv
-    if ($existing -eq "0") { az ad app federated-credential create --id $appId --parameters $credentialFile -o none }
-    Remove-Item $credentialFile
+    foreach ($name in $subjects.Keys) {
+        $existing = az ad app federated-credential list --id $appId --query "[?name=='$name'] | length(@)" -o tsv
+        if ($existing -ne "0") { continue }
+        @{ name = $name; issuer = "https://token.actions.githubusercontent.com"
+           subject = $subjects[$name]; audiences = @("api://AzureADTokenExchange") } |
+            ConvertTo-Json | Set-Content $credentialFile
+        az ad app federated-credential create --id $appId --parameters $credentialFile -o none
+        Write-Host "Trusted GitHub subject: $($subjects[$name])"
+    }
+    if (Test-Path $credentialFile) { Remove-Item $credentialFile }
     $rgId = az group show -n $ResourceGroup --query id -o tsv
     # Contributor on this resource group only: enough to build images and update the apps.
     Exists { az role assignment create --assignee $appId --role Contributor --scope $rgId -o none } | Out-Null
