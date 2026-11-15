@@ -1,18 +1,22 @@
-# Every push and pull request: backend unit tests + frontend type-check and build.
-# Push to main (after both pass): build both images in Azure Container Registry and roll the
-# Container Apps to them. Azure login uses OIDC (deploy/azure/setup.ps1 -GitHubRepo creates it):
+# Pushes to main and feature branches, and pull requests:
+# backend unit tests + frontend type-check and build.
+# Push to the original repository's main (after both pass):
+# build images in ACR and deploy to Azure Container Apps.
+# Azure login uses OIDC (deploy/azure/setup.ps1 -GitHubRepo creates it).
 # GitHub stores no Azure password.
 name: ci-cd
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - 'feature/**'
   pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
-  id-token: write # for the Azure OIDC login
 
 concurrency:
   group: ci-cd-${{ github.ref }}
@@ -55,8 +59,11 @@ jobs:
   deploy:
     name: Deploy to Azure
     needs: [backend, frontend]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.ACR_NAME != ''
+    if: github.repository == 'Dhruv19468/agent-lab' && github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.ACR_NAME != ''
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: azure/login@v2
